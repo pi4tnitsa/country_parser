@@ -1,4 +1,4 @@
-```markdown
+
 # Telegram Posts Monitoring Bot
 
 This is a Telegram bot designed to monitor posts from Telegram channels across different countries, store them in a PostgreSQL database, and allow authorized users to export the collected data in Excel or JSON format. The bot supports multi-country configurations, user management, and logging for both bot operations and user actions.

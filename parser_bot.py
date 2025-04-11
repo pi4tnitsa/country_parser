@@ -20,12 +20,10 @@ import logging
 import traceback
 from config import BOT_TOKEN, PASSWORD, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 
-# Log files
 LOG_FILE = "bot.log"
 USER_LOG_FILE = "user_actions.log"
 MAX_LOG_LINES = 10000
 
-# Configure logging for bot operations
 def trim_log_file(log_file):
     """Trim log file to MAX_LOG_LINES, removing oldest entries."""
     try:
@@ -48,7 +46,6 @@ logging.basicConfig(
     ]
 )
 
-# Separate logger for user actions
 user_logger = logging.getLogger('user_actions')
 user_handler = logging.FileHandler(USER_LOG_FILE)
 user_handler.setFormatter(logging.Formatter('%(asctime)s - UserID:%(user_id)s - %(message)s'))
@@ -109,7 +106,7 @@ def init_db():
     try:
         logging.info("Initializing database...")
         conn = connect_to_db()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)  # Используем RealDictCursor
+        cursor = conn.cursor(cursor_factory=RealDictCursor)  
         
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS channels (
@@ -664,16 +661,14 @@ def get_country_display_name(country_name):
     }
     return country_mappings.get(country_name.lower(), country_name.capitalize())
 
-# Function to create reply keyboard with only "List Countries" button
 def create_start_keyboard():
     buttons = [[KeyboardButton(text="🌎 Список стран")]]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
-# Function to create inline keyboard with paginated countries (10 per page)
 def create_paginated_countries_inline(countries, page=1):
     countries_per_page = 10
     total_pages = (len(countries) + countries_per_page - 1) // countries_per_page
-    page = max(1, min(page, total_pages))  # Ensure page is within bounds
+    page = max(1, min(page, total_pages))  
     
     start_idx = (page - 1) * countries_per_page
     end_idx = min(start_idx + countries_per_page, len(countries))
@@ -684,7 +679,6 @@ def create_paginated_countries_inline(countries, page=1):
         display_name = f"{get_country_emoji(country_name)} {get_country_display_name(country_name)}"
         buttons.append([InlineKeyboardButton(text=display_name, callback_data=f"country_{country_name}")])
     
-    # Pagination buttons
     nav_buttons = []
     if page > 1:
         nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"page_{page-1}"))
@@ -696,7 +690,6 @@ def create_paginated_countries_inline(countries, page=1):
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-# Function to display countries list as inline buttons
 async def show_countries_list_inline(message: types.Message, page=1):
     countries = get_all_countries()
     if not countries:
@@ -704,11 +697,10 @@ async def show_countries_list_inline(message: types.Message, page=1):
         return
     
     keyboard = create_paginated_countries_inline(countries, page)
-    await message.answer(f"🌍 <b>Выберите страну (страница {page}):</b>", 
+    await message.answer("🌍 <b>Выберите страну:</b>", 
                         reply_markup=keyboard, 
                         parse_mode="HTML")
 
-# Global command handler
 @dp.message(Command(commands=["start", "log", "log_users", "settings", "dump", "admin"]))
 async def handle_global_commands(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -788,7 +780,6 @@ async def process_country_selection(message: types.Message, state: FSMContext):
     
     await message.answer("⚠️ Пожалуйста, выберите страну из списка, нажав на inline-кнопку.", reply_markup=create_start_keyboard())
 
-# Handle inline country selection
 @dp.callback_query(lambda c: c.data.startswith("country_") or c.data.startswith("page_"))
 async def process_country_list_callback(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -821,7 +812,7 @@ async def process_country_list_callback(callback: types.CallbackQuery, state: FS
                 InlineKeyboardButton(text="Все время", callback_data="period_all_time")
             ],
             [
-                InlineKeyboardButton(text="◶ Назад", callback_data="back_to_countries")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_countries")
             ]
         ]
         
@@ -836,7 +827,6 @@ async def process_country_list_callback(callback: types.CallbackQuery, state: FS
         await state.set_state(ExportStates.waiting_for_period)
         await callback.answer()
 
-# Handle period selection
 @dp.callback_query(ExportStates.waiting_for_period)
 async def process_period_callback(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -847,7 +837,6 @@ async def process_period_callback(callback: types.CallbackQuery, state: FSMConte
         if callback_data == "back_to_countries":
             await callback.message.delete()
             await show_countries_list_inline(callback.message)
-            await callback.message.answer("Нажмите 'Список стран' для выбора страны:", reply_markup=create_start_keyboard())
             await state.set_state(ExportStates.waiting_for_country)
             await callback.answer()
             return
@@ -878,7 +867,6 @@ async def process_period_callback(callback: types.CallbackQuery, state: FSMConte
             end_date = today
             period_name = "текущий месяц"
         elif callback_data == "period_custom_month":
-            # Create inline keyboard with 12 months
             month_names = [
                 "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
                 "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
@@ -887,12 +875,12 @@ async def process_period_callback(callback: types.CallbackQuery, state: FSMConte
             for i, month_name in enumerate(month_names, 1):
                 buttons.append(InlineKeyboardButton(text=month_name, callback_data=f"month_{i}"))
             
-            # Organize buttons into 3 rows of 4 buttons each
+           
             keyboard_buttons = [
-                buttons[0:4],  # Январь - Апрель
-                buttons[4:8],  # Май - Август
-                buttons[8:12], # Сентябрь - Декабрь
-                [InlineKeyboardButton(text="◶ Назад", callback_data="back_to_period")]
+                buttons[0:4],  
+                buttons[4:8],  
+                buttons[8:12], 
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_period")]
             ]
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
@@ -920,7 +908,7 @@ async def process_period_callback(callback: types.CallbackQuery, state: FSMConte
                 InlineKeyboardButton(text="JSON", callback_data="format_json")
             ],
             [
-                InlineKeyboardButton(text="◶ Назад", callback_data="back_to_period")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_period")
             ]
         ]
         
@@ -958,7 +946,7 @@ async def process_custom_month_callback(callback: types.CallbackQuery, state: FS
                     InlineKeyboardButton(text="Все время", callback_data="period_all_time")
                 ],
                 [
-                    InlineKeyboardButton(text="◶ Назад", callback_data="back_to_countries")
+                    InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_countries")
                 ]
             ]
             
@@ -997,7 +985,7 @@ async def process_custom_month_callback(callback: types.CallbackQuery, state: FS
                     InlineKeyboardButton(text="JSON", callback_data="format_json")
                 ],
                 [
-                    InlineKeyboardButton(text="◶ Назад", callback_data="back_to_period")
+                    InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_period")
                 ]
             ]
             
@@ -1013,7 +1001,6 @@ async def process_custom_month_callback(callback: types.CallbackQuery, state: FS
         await callback.message.answer("⚠️ Произошла ошибка. Попробуйте снова.", reply_markup=create_start_keyboard())
         await callback.answer()
 
-# Handle /log password
 @dp.message(AdminStates.waiting_for_log_password)
 async def process_log_password(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1043,7 +1030,6 @@ async def process_log_password(message: types.Message, state: FSMContext):
     await state.clear()
     await handle_global_commands(message, state)
 
-# Handle /log_users password
 @dp.message(AdminStates.waiting_for_user_log_password)
 async def process_user_log_password(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1073,7 +1059,6 @@ async def process_user_log_password(message: types.Message, state: FSMContext):
     await state.clear()
     await handle_global_commands(message, state)
 
-# Handle /dump password
 @dp.message(AdminStates.waiting_for_dump_password)
 async def process_dump_password(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1102,7 +1087,6 @@ async def process_dump_password(message: types.Message, state: FSMContext):
     await state.clear()
     await handle_global_commands(message, state)
 
-# Handle /admin password
 @dp.message(AdminStates.waiting_for_admin_password)
 async def process_admin_password(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1132,7 +1116,6 @@ async def process_admin_password(message: types.Message, state: FSMContext):
     )
     user_logger.info(f"Displayed user management menu", extra={'user_id': user_id})
 
-# Handle custom month input
 @dp.message(ExportStates.waiting_for_custom_month)
 async def process_custom_month(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1163,7 +1146,7 @@ async def process_custom_month(message: types.Message, state: FSMContext):
                 InlineKeyboardButton(text="JSON", callback_data="format_json")
             ],
             [
-                InlineKeyboardButton(text="◶ Назад", callback_data="back_to_period")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_period")
             ]
         ]
         
@@ -1176,7 +1159,6 @@ async def process_custom_month(message: types.Message, state: FSMContext):
         await message.answer("⚠️ Формат: ММ.ГГГГ (например, 04.2023)", reply_markup=create_start_keyboard())
         return
 
-# Handle format selection
 @dp.callback_query(ExportStates.waiting_for_format)
 async def process_format_callback(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -1199,7 +1181,7 @@ async def process_format_callback(callback: types.CallbackQuery, state: FSMConte
                 InlineKeyboardButton(text="Все время", callback_data="period_all_time")
             ],
             [
-                InlineKeyboardButton(text="◶ Назад", callback_data="back_to_countries")
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_countries")
             ]
         ]
         
@@ -1234,7 +1216,7 @@ async def process_format_callback(callback: types.CallbackQuery, state: FSMConte
             await callback.message.delete()
             await callback.message.answer_document(
                 document=FSInputFile(file_path),
-                reply_markup=create_start_keyboard()  # Добавляем кнопку "Список стран"
+                reply_markup=create_start_keyboard()  
             )
             os.remove(file_path)
             user_logger.info(f"Exported {len(posts)} posts to Excel for {country}", extra={'user_id': user_id})
@@ -1246,7 +1228,7 @@ async def process_format_callback(callback: types.CallbackQuery, state: FSMConte
             await callback.message.delete()
             await callback.message.answer_document(
                 document=FSInputFile(file_path),
-                reply_markup=create_start_keyboard()  # Добавляем кнопку "Список стран"
+                reply_markup=create_start_keyboard() 
             )
             os.remove(file_path)
             user_logger.info(f"Exported {len(posts)} posts to JSON for {country}", extra={'user_id': user_id})
@@ -1258,7 +1240,6 @@ async def process_format_callback(callback: types.CallbackQuery, state: FSMConte
         await callback.message.answer(f"⚠️ Ошибка экспорта: {str(e)}", reply_markup=create_start_keyboard())
         await callback.answer()
 
-# Handle settings password
 @dp.message(ManageCountryStates.waiting_for_password)
 async def process_settings_password(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1273,7 +1254,7 @@ async def process_settings_password(message: types.Message, state: FSMContext):
     buttons = [
         [InlineKeyboardButton(text="➕ Добавить страну", callback_data="action_add_country")],
         [InlineKeyboardButton(text="❌ Удалить страну", callback_data="action_remove_country")],
-        [InlineKeyboardButton(text="<- Назад", callback_data="action_back")]
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="action_back")]
     ]
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -1286,7 +1267,6 @@ async def process_settings_password(message: types.Message, state: FSMContext):
     )
     await state.set_state(ManageCountryStates.waiting_for_action)
 
-# Handle country management actions
 @dp.callback_query(ManageCountryStates.waiting_for_action)
 async def process_country_action(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -1323,7 +1303,7 @@ async def process_country_action(callback: types.CallbackQuery, state: FSMContex
                 text=display_name,
                 callback_data=f"remove_{country_name}"
             )])
-        buttons.append([InlineKeyboardButton(text="◶ Назад", callback_data="back_to_actions")])
+        buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_actions")])
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
         
@@ -1348,7 +1328,6 @@ async def process_country_action(callback: types.CallbackQuery, state: FSMContex
         await callback.message.answer("⚠️ Выберите действие из меню", reply_markup=create_start_keyboard())
         await callback.answer()
 
-# Handle country name input
 @dp.message(ManageCountryStates.waiting_for_country_name)
 async def process_country_name(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1371,7 +1350,6 @@ async def process_country_name(message: types.Message, state: FSMContext):
     )
     await state.set_state(ManageCountryStates.waiting_for_api_id)
 
-# Handle API ID input
 @dp.message(ManageCountryStates.waiting_for_api_id)
 async def process_api_id(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1390,7 +1368,6 @@ async def process_api_id(message: types.Message, state: FSMContext):
     )
     await state.set_state(ManageCountryStates.waiting_for_api_hash)
 
-# Handle API Hash input
 @dp.message(ManageCountryStates.waiting_for_api_hash)
 async def process_api_hash(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1404,7 +1381,6 @@ async def process_api_hash(message: types.Message, state: FSMContext):
     )
     await state.set_state(ManageCountryStates.waiting_for_phone_number)
 
-# Handle phone number input
 @dp.message(ManageCountryStates.waiting_for_phone_number)
 async def process_phone_number(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1461,7 +1437,6 @@ async def process_phone_number(message: types.Message, state: FSMContext):
         await state.clear()
         await handle_global_commands(message, state)
 
-# Handle verification code
 @dp.message(ManageCountryStates.waiting_for_verification_code)
 async def process_verification_code(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1487,7 +1462,6 @@ async def process_verification_code(message: types.Message, state: FSMContext):
     await state.clear()
     await handle_global_commands(message, state)
 
-# Handle country removal
 @dp.callback_query(ManageCountryStates.waiting_for_country_to_remove)
 async def process_country_to_remove(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -1498,7 +1472,7 @@ async def process_country_to_remove(callback: types.CallbackQuery, state: FSMCon
         buttons = [
             [InlineKeyboardButton(text="➕ Добавить страну", callback_data="action_add_country")],
             [InlineKeyboardButton(text="❌ Удалить страну", callback_data="action_remove_country")],
-            [InlineKeyboardButton(text="<- Назад", callback_data="action_back")]
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="action_back")]
         ]
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -1540,7 +1514,6 @@ async def process_country_to_remove(callback: types.CallbackQuery, state: FSMCon
         await callback.message.answer("⚠️ Выберите страну из списка", reply_markup=create_start_keyboard())
         await callback.answer()
 
-# Handle admin actions (add/remove user)
 @dp.callback_query(lambda c: c.data in ["add_user", "remove_user"])
 async def process_admin_action(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -1569,7 +1542,7 @@ async def process_admin_action(callback: types.CallbackQuery, state: FSMContext)
                 text=f"👤 {uid}",
                 callback_data=f"remove_user_{uid}"
             )])
-        buttons.append([InlineKeyboardButton(text="◶ Назад", callback_data="back_to_admin")])
+        buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_admin")])
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
         
@@ -1582,7 +1555,6 @@ async def process_admin_action(callback: types.CallbackQuery, state: FSMContext)
         await state.set_state(AdminStates.waiting_for_user_to_remove)
         await callback.answer()
 
-# Handle user ID input for adding
 @dp.message(AdminStates.waiting_for_user_id)
 async def process_user_id(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -1603,7 +1575,6 @@ async def process_user_id(message: types.Message, state: FSMContext):
     await state.clear()
     await handle_global_commands(message, state)
 
-# Handle user removal selection
 @dp.callback_query(AdminStates.waiting_for_user_to_remove)
 async def process_user_to_remove(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -1677,7 +1648,6 @@ async def handle_unexpected_message(message: types.Message, state: FSMContext):
         reply_markup=create_start_keyboard()
     )
 
-# Bot startup
 async def on_startup():
     try:
         logging.info("Starting bot...")
@@ -1700,7 +1670,6 @@ async def on_startup():
         logging.error(traceback.format_exc())
         raise
 
-# Main function to run the bot
 async def main():
     try:
         await on_startup()
